@@ -28,8 +28,7 @@ router.post('/', function(req, res, next) {
 			res.status(400);
 			return next(err);
 		} else {
-			res.location('/')
-			.status(201).json();
+			return res.location('/').status(201).json();
 		}
 	});
 })

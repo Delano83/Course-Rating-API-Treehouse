@@ -1,27 +1,28 @@
-const auth = require('basic-auth');
-const {User} = require('../models/user'); 
+'use strict';
 
-function authLogin(req, res, next) {
-	//get credentials from header
-	var credentials = auth (req);
-	//check the credentials against the database
-	if (!credentials) {
-		var err = new Error("You must enter your username and password.");
-		err.status = 401;
-		next(err);
-	} else {
-        //Use the authenticate static method you built on the user schema to check the credentials against the database
-		User.userAuthentication(credentials.name, credentials.pass, function(err, user) {
-			if (err || !user) {
-				var error = new Error("Username and password incorrect, please retry!");
-				res.status = 401;
-				next(err);
-			} else {
-				req.user = user;
-				next();
-			}
-		});
-	}	
-}
+const auth    = require('basic-auth');
+const {User}  = require('../models/user');
 
-module.exports.authLogin = authLogin;
+//authenticate user
+const authLogin = (req, res, next) => {
+  let credentials = auth(req);
+  if (credentials) {
+    //find authenticated user in the database
+    User.userAuthentication(credentials.name, credentials.pass, (err, user) => {
+      if ( err || !user) {
+        let err = new Error('Wrong email or password.');
+        err.status = 401;
+        return next(err);
+      } else {
+        req.authUser = user;
+        return next();
+      }
+    });
+  } else if (!credentials) {
+    let err = new Error('You must be logged in.');
+    err.status = 401;
+    return next(err);
+  }
+};
+
+module.exports = {authLogin};
