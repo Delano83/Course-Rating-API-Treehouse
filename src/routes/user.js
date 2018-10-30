@@ -11,7 +11,7 @@ router.use(bodyParser.json());
 // GET /api/users 200 - Returns the currently authenticated user
 router.get('/', mid.authLogin, function(req, res) {
 
-	res.send(req.user).json();
+	res.send(req.authUser).json();
 })
 
 

@@ -26,18 +26,18 @@ router.get('/', function(req, res, next) {
 })
 
 // GET /api/course/:courseId 200 - Returns all Course properties and related documents for the provided course ID
-// When returning a single course for the GET /api/courses/:courseId route, use Mongoose population to load the related user and reviews documents.
+// When returning a single course for the GET /api/courses/:courseId route, use Mongoose population to load the related user and reviews documents. 	
 router.get('/:courseId', function(req, res, next) {
 	Course.findOne({
 		_id: req.params.courseId
-	}, function(err, course) {
-			if (err) {
-				return next(err); 
-			}
-		res.send(course);
+	})
+	.populate('review')
+	.populate('user')
+	.exec(function(err, course) {
+		if (err) return next(err);
+		   res.send(course.toJSON( { virtuals: true }));
 	});
-})
-
+});
 //function(err,obj) { console.log(obj); });
 
 //POST /api/courses 201 - Creates a course, sets the Location header, and returns no content
@@ -70,7 +70,6 @@ router.put('/:courseId', mid.authLogin, function(req, res, next) {
 //POST /api/courses/:courseId/reviews 201 - Creates a review for the specified course ID, sets the Location header to the related course, and returns no content
 router.post('/:courseId/reviews', mid.authLogin, function(req, res, next) {
 	Course.findById(req.params.courseId)
-		.populate('user')
 		.exec(function(err, course) {
 			if (err) {
 				return next(err);
