@@ -27,34 +27,76 @@ router.get('/', function(req, res, next) {
 
 // GET /api/course/:courseId 200 - Returns all Course properties and related documents for the provided course ID
 // When returning a single course for the GET /api/courses/:courseId route, use Mongoose population to load the related user and reviews documents. 	
-router.get('/:courseId', function(req, res, next) {
-	Course.findOne({
-		_id: req.params.courseId
-	})
-	.populate('review')
-	.populate('user')
-	.exec(function(err, course) {
-		if (err) return next(err);
-		   res.send(course.toJSON( { virtuals: true }));
-	});
-});
+// router.get('/:courseId', function(req, res, next) {
+// Course.findOne({
+// 		_id: req.params.courseId
+// 	})
+// 	.populate('user')
+// 	.populate('review')
+// 	.exec(function(err, course) {
+// 		if (err) return next(err);
+// 		res.send(course.toJSON( { virtuals: true }));
+// 	});
+// });
 //function(err,obj) { console.log(obj); });
 
-//POST /api/courses 201 - Creates a course, sets the Location header, and returns no content
-router.post('/', mid.authLogin, function(req, res, next) {
-	var course = new Course(req.body);
-
-	course.save(function(err, course) {
-		if (err) {
-			res.status(400);
-			return next(err);
-		} else {
-			res.location('/');
-			res.status(201).json();
+router.get('/:courseId', (req, res, next) => {
+	/* Get all course properties and related user and reviews. Use deep population to only select the fullName and id of associated user */
+	Course.findOne({ _id: req.params.courseId })
+	  .populate([{
+		  path: 'user',
+		  model: 'User',
+		  select: 'fullName _id'
+		},
+		{
+		  path: 'reviews',
+		  model: 'Review',
+		  populate: {
+			path: 'user',
+			model: 'User',
+			select: 'fullName _id'
+		  }
 		}
-	});
-})
+	  ])
+	  .exec(function(err, course) {
+		if (err) return next(err);
+		res.status = 200; // 200 - OK
+		res.json(course);
+	  })
+  });
 
+
+//POST /api/courses 201 - Creates a course, sets the Location header, and returns no content
+router.post('/', mid.authLogin, (req, res, next) => {
+	if (req.body.title &&
+	  req.body.description &&
+	  req.body.user &&
+	  req.body.steps) {
+  
+	  /* Create Course */
+	  Course.create(req.body, function(err, course) {
+		/* If a Mongoose error occurs, pass it to Express' global error handler with a 400 status code */
+		if (err) {
+		  if (err.name === 'MongoError' || err.name === "ValidationError") {
+			err.status = 400; // 400 - Bad Request
+		  }
+		  return next(err);
+		}
+  
+		/* Set location header to / and return 201 status */
+		res.setHeader('Location', '/');
+		res.status(201).send();
+	  })
+  
+	} else {
+	  var err = new Error();
+	  err.message = 'Title, description, user and steps fields required.';
+	  err.status = 401; // 401 - Unauthorized
+	  return next(err);
+	}
+  });
+
+  
 // PUT /api/courses/:courseId 204 - Updates a course and returns no content
 router.put('/:courseId', mid.authLogin, function(req, res, next) {
 	Course.findByIdAndUpdate(req.params.courseId, {$set:req.body}, {new: true}, function(err, course) {
@@ -68,32 +110,36 @@ router.put('/:courseId', mid.authLogin, function(req, res, next) {
 
 
 //POST /api/courses/:courseId/reviews 201 - Creates a review for the specified course ID, sets the Location header to the related course, and returns no content
-router.post('/:courseId/reviews', mid.authLogin, function(req, res, next) {
-	Course.findById(req.params.courseId)
-		.exec(function(err, course) {
-			if (err) {
-				return next(err);
-			}
+router.post('/:courseId/reviews', mid.authLogin, (req, res, next) => {
 
-	var newReview = new Review(req.body);
-	course.reviews.push(newReview);
-
-	newReview.save(function(err){
-        if (err) {
-			return next(err);
-		}
-    });
-
-	course.save(function(err){
+	/* If a rating exists, create new review and save it to database */  
+	if (req.body.rating) {
+	  const newReview = {
+		user: req.user,
+		rating: req.body.rating,
+		review: req.body.review
+	  }
+	  
+	  Review.create(newReview, function(err, review) {
 		if (err) {
-			return next(err);
+		  if (err.name === 'MongoError' || err.name === "ValidationError") {
+			err.status = 400; // 400 - Bad Request
+		  }
+		  return next(err);
+		} else {
+		  /* Set location header to / and return 201 status */
+		  res.setHeader('Location', '/courses/' + req.params.courseId);
+		  res.status(201).send(); // 201 - Created
 		}
-	});
-
-	res.location('/' + req.params.courseId)
-	.status(201).json();
-	});
-})
+	  });
+  
+	} else {
+	  var err = new Error();
+	  err.message = 'Rating is required.';
+	  err.status = 401; // 401 - Unauthorized
+	  return next(err);
+	}
+  });
 
 module.exports = router;
 
